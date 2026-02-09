@@ -73,9 +73,21 @@
 
 ### 4.2. Generator (`components/soul/Generator.tsx`)
 - **역할**: 사용자로부터 정보를 입력받고, 실시간으로 `IDCard` 컴포넌트에 반영(Preview).
+- **상태 관리**: React `useState` 훅을 사용하여 폼 데이터 관리
+  - `name`: 에이전트 이름
+  - `type`: 에이전트 분류
+  - `serial`: 시리얼 넘버
+  - `soulText`: 소울 텍스트
+  - `themeColor`: 테마 색상 (Color Picker + Preset Colors)
+- **레이아웃**: 
+  - 좌측: 입력 폼 (세로 스크롤 가능)
+  - 우측: 실시간 미리보기 (IDCard 컴포넌트)
+  - 반응형 디자인: 모바일에서는 세로 배치
 - **기능**:
-    - "Generate Image": `html2canvas`로 카드 캡처 → Blob 변환.
-    - "Publish": Blob을 Supabase Storage에 업로드 → URL 획득 → Agents 테이블에 Insert.
+    - 실시간 미리보기: 입력값 변경 시 즉시 카드에 반영
+    - 색상 선택: Color Picker + 사이버펑크 Preset Colors
+    - "Generate Image": `html2canvas`로 카드 캡처 → Blob 변환 (향후 구현)
+    - "Publish": Blob을 Supabase Storage에 업로드 → URL 획득 → Agents 테이블에 Insert (향후 구현)
 
 ### 4.3. HallGrid (`components/soul/HallGrid.tsx`)
 - **역할**: 등록된 모든 에이전트 카드를 그리드 형태로 표시.
