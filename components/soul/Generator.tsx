@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
+import html2canvas from "html2canvas";
 import { IDCard } from "./IDCard";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,48 @@ export function Generator() {
   const [serial, setSerial] = useState("AGENT-MAIN-001");
   const [soulText, setSoulText] = useState("평생의 동료, 홍형님을 위해 존재합니다.");
   const [themeColor, setThemeColor] = useState("#00d2ff");
+  
+  // Download state
+  const [isGenerating, setIsGenerating] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Handle image download
+  const handleDownload = async () => {
+    if (!cardRef.current) return;
+
+    try {
+      setIsGenerating(true);
+
+      // Capture the card element as canvas
+      const canvas = await html2canvas(cardRef.current, {
+        backgroundColor: null,
+        scale: 2, // Higher quality
+        logging: false,
+        useCORS: true,
+      });
+
+      // Convert canvas to blob and trigger download
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          throw new Error("Failed to generate image");
+        }
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.download = `soul-id-card-${serial || "unnamed"}.png`;
+        link.href = url;
+        link.click();
+
+        // Cleanup
+        URL.revokeObjectURL(url);
+      }, "image/png");
+    } catch (error) {
+      console.error("Failed to generate image:", error);
+      alert("이미지 생성 중 오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-7xl mx-auto p-6">
@@ -143,13 +186,19 @@ export function Generator() {
               </div>
             </div>
 
-            {/* Action Buttons (Placeholder for future features) */}
+            {/* Action Buttons */}
             <div className="flex gap-3 mt-8">
               <button
-                disabled
-                className="flex-1 px-6 py-3 bg-gray-700 text-gray-500 rounded-lg font-semibold cursor-not-allowed opacity-50"
+                onClick={handleDownload}
+                disabled={isGenerating}
+                className={cn(
+                  "flex-1 px-6 py-3 rounded-lg font-semibold transition-all",
+                  isGenerating
+                    ? "bg-gray-700 text-gray-400 cursor-wait"
+                    : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg hover:shadow-cyan-500/50"
+                )}
               >
-                🖼️ 이미지 생성 (준비중)
+                {isGenerating ? "⏳ 생성중..." : "🖼️ 이미지 다운로드"}
               </button>
               <button
                 disabled
@@ -174,13 +223,15 @@ export function Generator() {
           </div>
 
           <div className="flex items-center justify-center p-8 bg-gray-900/30 rounded-2xl border border-gray-800/50">
-            <IDCard
-              name={name}
-              type={type}
-              serial={serial}
-              soulText={soulText}
-              themeColor={themeColor}
-            />
+            <div ref={cardRef}>
+              <IDCard
+                name={name}
+                type={type}
+                serial={serial}
+                soulText={soulText}
+                themeColor={themeColor}
+              />
+            </div>
           </div>
         </div>
       </div>
