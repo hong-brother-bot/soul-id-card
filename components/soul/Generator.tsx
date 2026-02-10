@@ -4,6 +4,7 @@ import React, { useState, useRef } from "react";
 import html2canvas from "html2canvas";
 import { IDCard } from "./IDCard";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 // Cyberpunk-themed preset colors
 const PRESET_COLORS = [
@@ -25,6 +26,7 @@ export function Generator() {
   
   // Download state
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Handle image download
@@ -62,6 +64,82 @@ export function Generator() {
       alert("이미지 생성 중 오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // Handle publish to Supabase
+  const handlePublish = async () => {
+    if (!cardRef.current) return;
+
+    try {
+      setIsPublishing(true);
+
+      // Step 1: Generate image blob (reuse html2canvas logic)
+      const canvas = await html2canvas(cardRef.current, {
+        backgroundColor: null,
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      });
+
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error("Failed to generate image blob"));
+          }
+        }, "image/png");
+      });
+
+      // Step 2: Upload blob to Supabase Storage bucket 'cards'
+      const uuid = crypto.randomUUID();
+      const filePath = `public/${uuid}-${serial}.png`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("cards")
+        .upload(filePath, blob, {
+          contentType: "image/png",
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
+
+      // Step 3: Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from("cards")
+        .getPublicUrl(filePath);
+
+      // Step 4: Insert record into agents table
+      const { data: insertData, error: insertError } = await supabase
+        .from("agents")
+        .insert({
+          name,
+          model: type, // Map 'type' field to 'model' in database
+          serial_number: serial,
+          soul_text: soulText,
+          theme_color: themeColor,
+          image_url: publicUrl,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        throw new Error(`Database insert failed: ${insertError.message}`);
+      }
+
+      // Step 5: Show success message
+      alert(`🎉 카드가 성공적으로 발행되었습니다!\n\n에이전트 ID: ${insertData.id}\n이미지 URL: ${publicUrl}`);
+      
+      console.log("Published agent:", insertData);
+    } catch (error) {
+      console.error("Failed to publish card:", error);
+      alert(`발행 중 오류가 발생했습니다.\n\n${error instanceof Error ? error.message : "알 수 없는 오류"}`);
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -190,10 +268,10 @@ export function Generator() {
             <div className="flex gap-3 mt-8">
               <button
                 onClick={handleDownload}
-                disabled={isGenerating}
+                disabled={isGenerating || isPublishing}
                 className={cn(
                   "flex-1 px-6 py-3 rounded-lg font-semibold transition-all",
-                  isGenerating
+                  isGenerating || isPublishing
                     ? "bg-gray-700 text-gray-400 cursor-wait"
                     : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg hover:shadow-cyan-500/50"
                 )}
@@ -201,10 +279,16 @@ export function Generator() {
                 {isGenerating ? "⏳ 생성중..." : "🖼️ 이미지 다운로드"}
               </button>
               <button
-                disabled
-                className="flex-1 px-6 py-3 bg-gray-700 text-gray-500 rounded-lg font-semibold cursor-not-allowed opacity-50"
+                onClick={handlePublish}
+                disabled={isPublishing || isGenerating}
+                className={cn(
+                  "flex-1 px-6 py-3 rounded-lg font-semibold transition-all",
+                  isPublishing || isGenerating
+                    ? "bg-gray-700 text-gray-400 cursor-wait"
+                    : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg hover:shadow-purple-500/50"
+                )}
               >
-                🚀 발행하기 (준비중)
+                {isPublishing ? "⏳ 발행중..." : "🚀 발행하기"}
               </button>
             </div>
           </div>
